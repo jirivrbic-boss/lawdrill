@@ -13,10 +13,8 @@ export async function generateQuestions(
   const errors: string[] = [];
   const questions: QuestionGenerationResult["questions"] = [];
   
-  // Celkový počet otázek: 100 (20 kvízu, zbytek rozděleno mezi ostatní typy)
-  const totalQuestions = config.maxQuestionsPerBlock || 100;
-  const quizCount = 20;
-  const otherTypesCount = Math.floor((totalQuestions - quizCount) / 3); // ~27 pro každý z fill, tf, flashcard
+  // 100 otázek pro každý typ = celkem 400 otázek
+  const questionsPerType = 100;
   
   const minCitationLength = config.minCitationLength || 10;
 
@@ -31,10 +29,10 @@ export async function generateQuestions(
       block, 
       sourceBlocks, 
       {
-        quiz: quizCount,
-        fill: otherTypesCount,
-        tf: otherTypesCount,
-        flashcard: otherTypesCount,
+        quiz: questionsPerType,
+        fill: questionsPerType,
+        tf: questionsPerType,
+        flashcard: questionsPerType,
       },
       minCitationLength
     );
@@ -67,11 +65,11 @@ export async function generateQuestions(
     }
   }
 
-  // Vezmeme požadovaný počet z každého typu
-  questions.push(...allQuizQuestions.slice(0, quizCount));
-  questions.push(...allFillQuestions.slice(0, otherTypesCount));
-  questions.push(...allTFQuestions.slice(0, otherTypesCount));
-  questions.push(...allFlashcardQuestions.slice(0, otherTypesCount));
+  // Vezmeme požadovaný počet z každého typu (100 pro každý)
+  questions.push(...allQuizQuestions.slice(0, questionsPerType));
+  questions.push(...allFillQuestions.slice(0, questionsPerType));
+  questions.push(...allTFQuestions.slice(0, questionsPerType));
+  questions.push(...allFlashcardQuestions.slice(0, questionsPerType));
 
   return { questions, errors };
 }
