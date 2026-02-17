@@ -2,43 +2,46 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper funkce pro kontrolu vlastnictví
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Helper funkce pro kontrolu, že uživatel je přihlášený
+    // Helper funkce - kontrola, že uživatel je přihlášený
     function isAuthenticated() {
       return request.auth != null;
     }
     
+    // Helper funkce - kontrola vlastnictví podle ownerId
+    function isOwner() {
+      return isAuthenticated() && resource.data.ownerId == request.auth.uid;
+    }
+    
+    // Helper funkce - kontrola vlastnictví při vytváření
+    function isCreatingOwner() {
+      return isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+    }
+    
     // Users kolekce - uživatel může číst a upravovat pouze svůj vlastní záznam
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
     
     // Study Sets - uživatel může číst a vytvářet pouze své sady
     match /sets/{setId} {
-      // Get operace (načtení jednotlivého dokumentu) - explicitní kontrola
-      allow get: if request.auth != null && 
-                    resource.data.ownerId == request.auth.uid;
-      // List operace (dotaz na kolekci) - pro dotazy s where("ownerId", "==", uid)
-      allow list: if request.auth != null;
+      // Get operace - kontrola ownerId v dokumentu
+      allow get: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      // List operace - dotaz už filtruje podle ownerId, Firestore aplikuje get pravidlo na každý dokument
+      allow list: if isAuthenticated();
       // Create - kontrola ownerId v novém dokumentu
-      allow create: if request.auth != null && 
-                       request.resource.data.ownerId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
       // Update - kontrola ownerId a immutability sourceBlocks
-      allow update: if request.auth != null 
+      allow update: if isAuthenticated() 
                     && resource.data.ownerId == request.auth.uid
                     && request.resource.data.sourceBlocks == resource.data.sourceBlocks;
       // Delete - kontrola ownerId
-      allow delete: if request.auth != null && 
-                       resource.data.ownerId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
     }
     
     // Questions - uživatel může číst a vytvářet pouze otázky ze svých sad
     match /questions/{questionId} {
-      allow read: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow get: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow list: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
@@ -46,7 +49,8 @@ service cloud.firestore {
     
     // Attempts - uživatel může číst a vytvářet pouze své pokusy
     match /attempts/{attemptId} {
-      allow read: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow get: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow list: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
@@ -54,7 +58,8 @@ service cloud.firestore {
     
     // AI Hints - uživatel může číst a vytvářet pouze své nápovědy
     match /aiHints/{hintId} {
-      allow read: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow get: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow list: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
     }

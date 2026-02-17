@@ -13,7 +13,7 @@ export async function generateQuestions(
   const errors: string[] = [];
   const questions: QuestionGenerationResult["questions"] = [];
   
-  const maxQuestions = config.maxQuestionsPerBlock || 5;
+  const maxQuestions = config.maxQuestionsPerBlock || 10; // Zvýšeno pro lepší pokrytí
   const minCitationLength = config.minCitationLength || 10;
 
   for (const block of sourceBlocks) {
