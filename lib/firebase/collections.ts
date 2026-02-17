@@ -4,6 +4,7 @@ import {
   getDoc, 
   getDocs, 
   addDoc, 
+  setDoc,
   updateDoc, 
   deleteDoc,
   query,
@@ -71,7 +72,8 @@ export async function createUser(uid: string, email: string, displayName?: strin
     streak: 0,
   });
   
-  await updateDoc(doc(getDb(), "users", uid), userData);
+  // Použijeme setDoc místo updateDoc, protože dokument může neexistovat
+  await setDoc(doc(getDb(), "users", uid), userData, { merge: true });
 }
 
 export async function updateUserStreak(uid: string, streak: number, lastPracticeDate: Date): Promise<void> {
@@ -102,13 +104,14 @@ export async function getSet(setId: string): Promise<StudySet | null> {
 }
 
 export async function getUserSets(ownerId: string): Promise<StudySet[]> {
+  // Použijeme pouze where bez orderBy, abychom se vyhnuli potřebě composite indexu
+  // Seřadíme výsledky v JavaScriptu místo v dotazu
   const q = query(
     setsCollection(),
-    where("ownerId", "==", ownerId),
-    orderBy("updatedAt", "desc")
+    where("ownerId", "==", ownerId)
   );
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => {
+  const sets = querySnapshot.docs.map((doc) => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -121,6 +124,9 @@ export async function getUserSets(ownerId: string): Promise<StudySet[]> {
       updatedAt: fromFirestoreDate(data.updatedAt),
     } as StudySet;
   });
+  
+  // Seřadíme podle updatedAt v JavaScriptu (nejnovější první)
+  return sets.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 }
 
 export async function createSet(setData: Omit<StudySet, "id" | "createdAt" | "updatedAt">): Promise<string> {
