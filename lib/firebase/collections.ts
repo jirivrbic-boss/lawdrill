@@ -20,6 +20,25 @@ import type { StudySet, Question, Attempt, AIHint, User } from "./types";
 export const toFirestoreDate = (date: Date) => Timestamp.fromDate(date);
 export const fromFirestoreDate = (timestamp: Timestamp) => timestamp.toDate();
 
+// Helper pro odstranění undefined hodnot z objektu (Firestore nepodporuje undefined)
+function removeUndefined<T extends Record<string, any>>(obj: T): T {
+  const cleaned: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (Array.isArray(value)) {
+        cleaned[key] = value.map((item) => 
+          typeof item === 'object' && item !== null ? removeUndefined(item) : item
+        );
+      } else if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
+        cleaned[key] = removeUndefined(value);
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned as T;
+}
+
 // Helper pro získání db instance (pouze na klientovi)
 function getDb() {
   if (!db) {
@@ -45,12 +64,14 @@ export async function getUser(uid: string): Promise<User | null> {
 }
 
 export async function createUser(uid: string, email: string, displayName?: string): Promise<void> {
-  await updateDoc(doc(getDb(), "users", uid), {
+  const userData = removeUndefined({
     email,
     displayName,
     createdAt: toFirestoreDate(new Date()),
     streak: 0,
   });
+  
+  await updateDoc(doc(getDb(), "users", uid), userData);
 }
 
 export async function updateUserStreak(uid: string, streak: number, lastPracticeDate: Date): Promise<void> {
@@ -103,7 +124,7 @@ export async function getUserSets(ownerId: string): Promise<StudySet[]> {
 }
 
 export async function createSet(setData: Omit<StudySet, "id" | "createdAt" | "updatedAt">): Promise<string> {
-  const docRef = await addDoc(setsCollection(), {
+  const firestoreData = removeUndefined({
     ...setData,
     sourceBlocks: setData.sourceBlocks.map((block) => ({
       ...block,
@@ -112,14 +133,18 @@ export async function createSet(setData: Omit<StudySet, "id" | "createdAt" | "up
     createdAt: toFirestoreDate(new Date()),
     updatedAt: toFirestoreDate(new Date()),
   });
+  
+  const docRef = await addDoc(setsCollection(), firestoreData);
   return docRef.id;
 }
 
 export async function updateSet(setId: string, updates: Partial<Omit<StudySet, "id" | "sourceBlocks" | "sourceVersion">>): Promise<void> {
-  await updateDoc(doc(getDb(), "sets", setId), {
+  const updateData = removeUndefined({
     ...updates,
     updatedAt: toFirestoreDate(new Date()),
   });
+  
+  await updateDoc(doc(getDb(), "sets", setId), updateData);
 }
 
 export async function deleteSet(setId: string): Promise<void> {
@@ -147,10 +172,12 @@ export async function getSetQuestions(setId: string): Promise<Question[]> {
 }
 
 export async function createQuestion(questionData: Omit<Question, "id" | "createdAt">): Promise<string> {
-  const docRef = await addDoc(questionsCollection(), {
+  const firestoreData = removeUndefined({
     ...questionData,
     createdAt: toFirestoreDate(new Date()),
   });
+  
+  const docRef = await addDoc(questionsCollection(), firestoreData);
   return docRef.id;
 }
 
@@ -161,10 +188,11 @@ export async function createQuestions(questions: Array<Omit<Question, "id" | "cr
   
   questions.forEach((q) => {
     const docRef = doc(questionsCollection());
-    batchWrite.set(docRef, {
+    const firestoreData = removeUndefined({
       ...q,
       createdAt: now,
     });
+    batchWrite.set(docRef, firestoreData);
   });
   
   await batchWrite.commit();
@@ -178,7 +206,7 @@ export async function deleteQuestion(questionId: string): Promise<void> {
 export const attemptsCollection = () => collection(getDb(), "attempts");
 
 export async function createAttempt(attemptData: Omit<Attempt, "id">): Promise<string> {
-  const docRef = await addDoc(attemptsCollection(), {
+  const firestoreData = removeUndefined({
     ...attemptData,
     startedAt: toFirestoreDate(attemptData.startedAt),
     finishedAt: attemptData.finishedAt ? toFirestoreDate(attemptData.finishedAt) : null,
@@ -187,6 +215,8 @@ export async function createAttempt(attemptData: Omit<Attempt, "id">): Promise<s
       answeredAt: toFirestoreDate(a.answeredAt),
     })),
   });
+  
+  const docRef = await addDoc(attemptsCollection(), firestoreData);
   return docRef.id;
 }
 
@@ -234,9 +264,11 @@ export async function getQuestionHint(questionId: string, ownerId: string): Prom
 }
 
 export async function createHint(hintData: Omit<AIHint, "id" | "createdAt">): Promise<string> {
-  const docRef = await addDoc(aiHintsCollection(), {
+  const firestoreData = removeUndefined({
     ...hintData,
     createdAt: toFirestoreDate(new Date()),
   });
+  
+  const docRef = await addDoc(aiHintsCollection(), firestoreData);
   return docRef.id;
 }
