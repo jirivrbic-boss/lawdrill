@@ -13,13 +13,33 @@ export async function generateQuestions(
   const errors: string[] = [];
   const questions: QuestionGenerationResult["questions"] = [];
   
-  const maxQuestions = config.maxQuestionsPerBlock || 10; // Zvýšeno pro lepší pokrytí
+  // Celkový počet otázek: 100 (20 kvízu, zbytek rozděleno mezi ostatní typy)
+  const totalQuestions = config.maxQuestionsPerBlock || 100;
+  const quizCount = 20;
+  const otherTypesCount = Math.floor((totalQuestions - quizCount) / 3); // ~27 pro každý z fill, tf, flashcard
+  
   const minCitationLength = config.minCitationLength || 10;
 
+  // Generujeme otázky ze všech bloků dohromady
+  const allQuizQuestions: QuestionGenerationResult["questions"] = [];
+  const allFillQuestions: QuestionGenerationResult["questions"] = [];
+  const allTFQuestions: QuestionGenerationResult["questions"] = [];
+  const allFlashcardQuestions: QuestionGenerationResult["questions"] = [];
+
   for (const block of sourceBlocks) {
-    const blockQuestions = await generateQuestionsFromBlock(block, sourceBlocks, maxQuestions, minCitationLength);
+    const blockQuestions = await generateQuestionsFromBlock(
+      block, 
+      sourceBlocks, 
+      {
+        quiz: quizCount,
+        fill: otherTypesCount,
+        tf: otherTypesCount,
+        flashcard: otherTypesCount,
+      },
+      minCitationLength
+    );
     
-    // Validace každé otázky
+    // Roztřídíme otázky podle typu
     for (const q of blockQuestions) {
       // Validace citací
       const hasValidCitation = q.citations.some((c) => {
@@ -39,9 +59,19 @@ export async function generateQuestions(
         continue;
       }
 
-      questions.push(q);
+      // Přidáme do příslušného pole podle typu
+      if (q.type === "quiz") allQuizQuestions.push(q);
+      else if (q.type === "fill") allFillQuestions.push(q);
+      else if (q.type === "tf") allTFQuestions.push(q);
+      else if (q.type === "flashcard") allFlashcardQuestions.push(q);
     }
   }
+
+  // Vezmeme požadovaný počet z každého typu
+  questions.push(...allQuizQuestions.slice(0, quizCount));
+  questions.push(...allFillQuestions.slice(0, otherTypesCount));
+  questions.push(...allTFQuestions.slice(0, otherTypesCount));
+  questions.push(...allFlashcardQuestions.slice(0, otherTypesCount));
 
   return { questions, errors };
 }
@@ -52,7 +82,7 @@ export async function generateQuestions(
 async function generateQuestionsFromBlock(
   block: SourceBlock,
   allBlocks: SourceBlock[],
-  maxQuestions: number,
+  questionCounts: { quiz: number; fill: number; tf: number; flashcard: number },
   minCitationLength: number
 ): Promise<QuestionGenerationResult["questions"]> {
   const questions: QuestionGenerationResult["questions"] = [];
@@ -66,25 +96,25 @@ async function generateQuestionsFromBlock(
   const sentences = splitIntoSentences(text);
   const paragraphs = splitIntoParagraphs(text);
 
-  // Generování různých typů otázek
+  // Generování různých typů otázek s požadovanými počty
 
-  // 1. QUIZ otázky - z klíčových vět
-  const quizQuestions = generateQuizQuestions(sentences, block, allBlocks, maxQuestions);
+  // 1. QUIZ otázky - z klíčových vět (20 celkem)
+  const quizQuestions = generateQuizQuestions(sentences, block, allBlocks, questionCounts.quiz);
   questions.push(...quizQuestions);
 
-  // 2. DOPLŇOVAČKA - z vět s klíčovými pojmy
-  const fillQuestions = generateFillQuestions(sentences, block, allBlocks, Math.floor(maxQuestions / 2));
+  // 2. DOPLŇOVAČKA - z vět s klíčovými pojmy (~27 celkem)
+  const fillQuestions = generateFillQuestions(sentences, block, allBlocks, questionCounts.fill);
   questions.push(...fillQuestions);
 
-  // 3. PRAVDA/NEPRAVDA - z tvrzení
-  const tfQuestions = generateTrueFalseQuestions(sentences, block, allBlocks, Math.floor(maxQuestions / 2));
+  // 3. PRAVDA/NEPRAVDA - z tvrzení (~27 celkem)
+  const tfQuestions = generateTrueFalseQuestions(sentences, block, allBlocks, questionCounts.tf);
   questions.push(...tfQuestions);
 
-  // 4. FLASHCARDS - z klíčových pojmů a definic
-  const flashcardQuestions = generateFlashcardQuestions(paragraphs, block, allBlocks, Math.floor(maxQuestions / 2));
+  // 4. FLASHCARDS - z klíčových pojmů a definic (~26 celkem)
+  const flashcardQuestions = generateFlashcardQuestions(paragraphs, block, allBlocks, questionCounts.flashcard);
   questions.push(...flashcardQuestions);
 
-  return questions.slice(0, maxQuestions);
+  return questions;
 }
 
 /**
