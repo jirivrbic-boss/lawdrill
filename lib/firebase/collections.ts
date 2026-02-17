@@ -213,20 +213,31 @@ export async function deleteSet(setId: string): Promise<void> {
 export const questionsCollection = () => collection(getDb(), "questions");
 
 export async function getSetQuestions(setId: string): Promise<Question[]> {
-  const q = query(
-    questionsCollection(),
-    where("setId", "==", setId),
-    orderBy("createdAt", "asc")
-  );
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      ...data,
-      createdAt: fromFirestoreDate(data.createdAt),
-    } as Question;
-  });
+  try {
+    // Použijeme pouze where bez orderBy, abychom se vyhnuli potřebě composite indexu
+    const q = query(
+      questionsCollection(),
+      where("setId", "==", setId)
+    );
+    const querySnapshot = await getDocs(q);
+    const questions = querySnapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: fromFirestoreDate(data.createdAt),
+      } as Question;
+    });
+    
+    // Seřadíme podle createdAt v JavaScriptu (nejstarší první)
+    return questions.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  } catch (error: any) {
+    console.error("getSetQuestions: chyba:", error.code, error.message);
+    if (error.code === "failed-precondition") {
+      console.error("INDEX REQUIRED - Dotaz vyžaduje composite index. Odstranil jsem orderBy z dotazu.");
+    }
+    throw error;
+  }
 }
 
 export async function createQuestion(questionData: Omit<Question, "id" | "createdAt">): Promise<string> {
@@ -279,26 +290,38 @@ export async function createAttempt(attemptData: Omit<Attempt, "id">): Promise<s
 }
 
 export async function getUserAttempts(ownerId: string, setId?: string): Promise<Attempt[]> {
-  const constraints: QueryConstraint[] = [where("ownerId", "==", ownerId)];
-  if (setId) {
-    constraints.push(where("setId", "==", setId));
+  try {
+    const constraints: QueryConstraint[] = [where("ownerId", "==", ownerId)];
+    if (setId) {
+      constraints.push(where("setId", "==", setId));
+    }
+    // Odstraníme orderBy, abychom se vyhnuli potřebě composite indexu
+    // Seřadíme v JavaScriptu místo toho
+    const q = query(attemptsCollection(), ...constraints);
+    const querySnapshot = await getDocs(q);
+    const attempts = querySnapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        startedAt: fromFirestoreDate(data.startedAt),
+        finishedAt: data.finishedAt ? fromFirestoreDate(data.finishedAt) : undefined,
+        answers: data.answers.map((a: any) => ({
+          ...a,
+          answeredAt: fromFirestoreDate(a.answeredAt),
+        })),
+      } as Attempt;
+    });
+    
+    // Seřadíme podle startedAt v JavaScriptu (nejnovější první)
+    return attempts.sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+  } catch (error: any) {
+    console.error("getUserAttempts: chyba:", error.code, error.message);
+    if (error.code === "failed-precondition") {
+      console.error("INDEX REQUIRED - Dotaz vyžaduje composite index. Odstranil jsem orderBy z dotazu.");
+    }
+    throw error;
   }
-  constraints.push(orderBy("startedAt", "desc"));
-  const q = query(attemptsCollection(), ...constraints);
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      ...data,
-      startedAt: fromFirestoreDate(data.startedAt),
-      finishedAt: data.finishedAt ? fromFirestoreDate(data.finishedAt) : undefined,
-      answers: data.answers.map((a: any) => ({
-        ...a,
-        answeredAt: fromFirestoreDate(a.answeredAt),
-      })),
-    } as Attempt;
-  });
 }
 
 // AI Hints kolekce
