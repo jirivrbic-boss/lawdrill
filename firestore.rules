@@ -19,16 +19,21 @@ service cloud.firestore {
     
     // Study Sets - uživatel může číst a vytvářet pouze své sady
     match /sets/{setId} {
-      // Read operace (get i list) - kontrola ownerId
-      allow read: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      // Get operace (načtení jednotlivého dokumentu) - explicitní kontrola
+      allow get: if request.auth != null && 
+                    resource.data.ownerId == request.auth.uid;
+      // List operace (dotaz na kolekci) - pro dotazy s where("ownerId", "==", uid)
+      allow list: if request.auth != null;
       // Create - kontrola ownerId v novém dokumentu
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if request.auth != null && 
+                       request.resource.data.ownerId == request.auth.uid;
       // Update - kontrola ownerId a immutability sourceBlocks
-      allow update: if isAuthenticated() 
+      allow update: if request.auth != null 
                     && resource.data.ownerId == request.auth.uid
                     && request.resource.data.sourceBlocks == resource.data.sourceBlocks;
       // Delete - kontrola ownerId
-      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow delete: if request.auth != null && 
+                       resource.data.ownerId == request.auth.uid;
     }
     
     // Questions - uživatel může číst a vytvářet pouze otázky ze svých sad
