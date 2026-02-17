@@ -30,20 +30,27 @@ export default function SetDetailPage() {
 
   const loadSet = async () => {
     try {
+      console.log("Načítání sady:", setId);
       const [setData, questionsData] = await Promise.all([
         getSet(setId),
         getSetQuestions(setId),
       ]);
 
       if (!setData) {
+        console.warn("Sada nenalezena:", setId);
         router.push("/dashboard");
         return;
       }
 
+      console.log("Sada načtena:", setData.title, "Otázek:", questionsData.length);
       setSet(setData);
       setQuestions(questionsData);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chyba při načítání sady:", error);
+      const errorCode = error?.code || "";
+      if (errorCode === "permission-denied") {
+        console.error("PERMISSION DENIED - Zkontrolujte Security Rules v Firebase Console!");
+      }
     } finally {
       setLoading(false);
     }

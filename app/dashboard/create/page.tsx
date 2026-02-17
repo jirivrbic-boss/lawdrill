@@ -135,7 +135,18 @@ export default function CreateSetPage() {
 
       router.push(`/dashboard/sets/${setId}`);
     } catch (err: any) {
-      setError("Chyba při vytváření sady: " + err.message);
+      console.error("Chyba při vytváření sady:", err);
+      const errorMessage = err.message || "Neznámá chyba";
+      const errorCode = err.code || "";
+      
+      // Detailnější chybové zprávy
+      if (errorCode === "permission-denied") {
+        setError("Chyba oprávnění: Zkontrolujte, že jsou Security Rules správně nastavené v Firebase Console. Viz FIREBASE_SETUP.md");
+      } else if (errorMessage.includes("undefined")) {
+        setError("Chyba dat: Některá pole mají neplatné hodnoty. Zkontrolujte formulář.");
+      } else {
+        setError(`Chyba při vytváření sady: ${errorMessage}${errorCode ? ` (${errorCode})` : ""}`);
+      }
     } finally {
       setLoading(false);
     }

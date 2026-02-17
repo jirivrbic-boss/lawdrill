@@ -29,10 +29,16 @@ export default function DashboardPage() {
   const loadSets = async () => {
     if (!user) return;
     try {
+      console.log("Načítání sad pro uživatele:", user.uid);
       const userSets = await getUserSets(user.uid);
+      console.log("Načteno sad:", userSets.length);
       setSets(userSets);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chyba při načítání sad:", error);
+      const errorCode = error?.code || "";
+      if (errorCode === "permission-denied") {
+        console.error("PERMISSION DENIED - Zkontrolujte Security Rules v Firebase Console!");
+      }
     } finally {
       setLoading(false);
     }
