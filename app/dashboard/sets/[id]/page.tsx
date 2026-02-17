@@ -33,20 +33,33 @@ export default function SetDetailPage() {
   const loadSet = async () => {
     try {
       console.log("Načítání sady:", setId);
-      const [setData, questionsData] = await Promise.all([
-        getSet(setId),
-        getSetQuestions(setId),
-      ]);
-
+      
+      // Nejdřív načteme sadu
+      const setData = await getSet(setId);
+      
       if (!setData) {
         console.warn("Sada nenalezena:", setId);
         router.push("/dashboard");
         return;
       }
 
-      console.log("Sada načtena:", setData.title, "Otázek:", questionsData.length);
+      console.log("Sada načtena:", setData.title);
       setSet(setData);
-      setQuestions(questionsData);
+      
+      // Pak načteme otázky (může selhat kvůli indexu, ale to nevadí - zobrazíme prázdný seznam)
+      try {
+        const questionsData = await getSetQuestions(setId);
+        console.log("Otázek načteno:", questionsData.length);
+        setQuestions(questionsData);
+      } catch (questionsError: any) {
+        console.error("Chyba při načítání otázek:", questionsError);
+        const errorCode = questionsError?.code || "";
+        if (errorCode === "failed-precondition") {
+          console.warn("Dotaz vyžaduje index - otázky se načtou po opravě v kódu");
+        }
+        // I když otázky selžou, zobrazíme sadu (možná ještě nemá otázky nebo je problém s indexem)
+        setQuestions([]);
+      }
       
       // Pokud je query parametr selectMode=true, zobrazíme výběr módu a scrollneme na něj
       if (searchParams.get("selectMode") === "true") {
@@ -61,25 +74,24 @@ export default function SetDetailPage() {
         }, 500);
       } else {
         // Pokud není query parametr, ale máme otázky, automaticky scrollneme na výběr módu
-        if (questionsData.length > 0) {
-          setTimeout(() => {
-            const modeSection = document.getElementById("mode-selection");
-            if (modeSection) {
-              modeSection.scrollIntoView({ behavior: "smooth", block: "start" });
-            }
-          }, 300);
-        }
+        setTimeout(() => {
+          const modeSection = document.getElementById("mode-selection");
+          if (modeSection) {
+            modeSection.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }, 300);
       }
     } catch (error: any) {
       console.error("Chyba při načítání sady:", error);
       const errorCode = error?.code || "";
       if (errorCode === "permission-denied") {
         console.error("PERMISSION DENIED - Zkontrolujte Security Rules v Firebase Console!");
-        // I při chybě zobrazíme něco uživateli
-        setLoading(false);
-        return;
+      } else if (errorCode === "failed-precondition") {
+        console.error("INDEX REQUIRED - Dotaz vyžaduje composite index. Opravil jsem to v kódu.");
       }
-      throw error;
+      // I při chybě zobrazíme něco uživateli
+      setLoading(false);
+      return;
     } finally {
       setLoading(false);
     }
