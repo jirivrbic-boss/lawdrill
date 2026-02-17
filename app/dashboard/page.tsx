@@ -36,7 +36,10 @@ export default function DashboardPage() {
       console.log("Načítání sad pro uživatele:", user.uid);
       const userSets = await getUserSets(user.uid);
       console.log("Načteno sad:", userSets.length);
-      setSets(userSets);
+      // Oprava: zajistíme, že length je vždy nezáporné číslo
+      const validSets = Array.isArray(userSets) ? userSets : [];
+      console.log("Platných sad:", validSets.length);
+      setSets(validSets);
     } catch (error: any) {
       console.error("Chyba při načítání sad:", error);
       const errorCode = error?.code || "";

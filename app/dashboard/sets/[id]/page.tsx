@@ -59,13 +59,27 @@ export default function SetDetailPage() {
           // Odstraníme query parametr z URL
           router.replace(`/dashboard/sets/${setId}`, { scroll: false });
         }, 500);
+      } else {
+        // Pokud není query parametr, ale máme otázky, automaticky scrollneme na výběr módu
+        if (questionsData.length > 0) {
+          setTimeout(() => {
+            const modeSection = document.getElementById("mode-selection");
+            if (modeSection) {
+              modeSection.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+          }, 300);
+        }
       }
     } catch (error: any) {
       console.error("Chyba při načítání sady:", error);
       const errorCode = error?.code || "";
       if (errorCode === "permission-denied") {
         console.error("PERMISSION DENIED - Zkontrolujte Security Rules v Firebase Console!");
+        // I při chybě zobrazíme něco uživateli
+        setLoading(false);
+        return;
       }
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -157,6 +171,28 @@ export default function SetDetailPage() {
           </div>
         </div>
 
+        {/* Sekce s výběrem módu procvičování - VŽDY zobrazit pokud máme otázky */}
+        {questions.length > 0 && (
+          <div id="mode-selection" className="scroll-mt-24 mb-8">
+            {showModeSelection && (
+              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6 mb-6 animate-pulse">
+                <h3 className="text-xl font-bold text-green-800 mb-2">
+                  ✅ Sada byla úspěšně vytvořena!
+                </h3>
+                <p className="text-green-700">
+                  Vyberte si mód procvičování níže a začněte procvičovat.
+                </p>
+              </div>
+            )}
+            <div className="bg-white rounded-lg shadow-md p-8 mb-8">
+              <h2 className="text-3xl font-bold mb-2 text-center">Vyberte mód procvičování</h2>
+              <p className="text-gray-600 mb-8 text-center">
+                Zvolte si způsob, jakým chcete procvičovat tuto sadu otázek.
+              </p>
+            </div>
+          </div>
+        )}
+
         {questions.length === 0 ? (
           <div className="bg-white rounded-lg shadow-md p-12 text-center">
             <p className="text-gray-600 text-lg mb-4">
@@ -165,22 +201,6 @@ export default function SetDetailPage() {
           </div>
         ) : (
           <>
-            <div id="mode-selection" className="scroll-mt-24">
-              {showModeSelection && (
-                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6 mb-6 animate-pulse">
-                  <h3 className="text-xl font-bold text-green-800 mb-2">
-                    ✅ Sada byla úspěšně vytvořena!
-                  </h3>
-                  <p className="text-green-700">
-                    Vyberte si mód procvičování níže a začněte procvičovat.
-                  </p>
-                </div>
-              )}
-              <h2 className="text-3xl font-bold mb-2">Vyberte mód procvičování</h2>
-              <p className="text-gray-600 mb-6">
-                Zvolte si způsob, jakým chcete procvičovat tuto sadu otázek.
-              </p>
-            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               {modes.map((mode) => {
                 const availableQuestions = questions.filter((q) => q.type === mode.type);
@@ -188,29 +208,29 @@ export default function SetDetailPage() {
                   <Link
                     key={mode.type}
                     href={`/dashboard/sets/${setId}/practice/${mode.type}`}
-                    className={`bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-all transform hover:scale-105 ${
+                    className={`bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-lg p-8 hover:shadow-2xl transition-all transform hover:scale-105 ${
                       availableQuestions.length === 0 
-                        ? "opacity-50 cursor-not-allowed" 
-                        : "hover:border-primary-500 border-2 border-transparent"
+                        ? "opacity-50 cursor-not-allowed pointer-events-none" 
+                        : "hover:border-primary-500 border-2 border-transparent cursor-pointer"
                     }`}
                   >
-                    <div className="text-5xl mb-4 text-center">{mode.icon}</div>
-                    <h3 className="text-2xl font-bold mb-2 text-center">{mode.name}</h3>
-                    <p className="text-gray-600 text-sm mb-4 text-center">{mode.description}</p>
-                    <div className="text-center">
-                      <div className={`inline-block px-4 py-2 rounded-lg ${
+                    <div className="text-6xl mb-4 text-center">{mode.icon}</div>
+                    <h3 className="text-2xl font-bold mb-3 text-center text-gray-900">{mode.name}</h3>
+                    <p className="text-gray-600 text-base mb-6 text-center">{mode.description}</p>
+                    <div className="text-center mb-4">
+                      <div className={`inline-block px-6 py-3 rounded-full text-lg font-semibold ${
                         availableQuestions.length > 0
-                          ? "bg-primary-100 text-primary-700 font-semibold"
-                          : "bg-gray-100 text-gray-500"
+                          ? "bg-primary-600 text-white shadow-md"
+                          : "bg-gray-200 text-gray-500"
                       }`}>
                         {availableQuestions.length > 0
                           ? `${availableQuestions.length} otázek`
-                          : "Žádné otázky tohoto typu"}
+                          : "Žádné otázky"}
                       </div>
                     </div>
                     {availableQuestions.length > 0 && (
                       <div className="mt-4 text-center">
-                        <span className="text-primary-600 font-semibold">Začít procvičovat →</span>
+                        <span className="text-primary-600 font-bold text-lg">Začít procvičovat →</span>
                       </div>
                     )}
                   </Link>
