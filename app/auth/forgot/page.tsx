@@ -17,6 +17,12 @@ export default function ForgotPasswordPage() {
     setSuccess(false);
     setLoading(true);
 
+    if (!auth) {
+      setError("Autentizace není inicializována");
+      setLoading(false);
+      return;
+    }
+
     try {
       await sendPasswordResetEmail(auth, email);
       setSuccess(true);

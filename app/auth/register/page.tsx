@@ -30,6 +30,12 @@ export default function RegisterPage() {
 
     setLoading(true);
 
+    if (!auth) {
+      setError("Autentizace není inicializována");
+      setLoading(false);
+      return;
+    }
+
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       router.push("/dashboard");

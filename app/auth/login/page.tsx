@@ -18,6 +18,12 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
+    if (!auth) {
+      setError("Autentizace není inicializována");
+      setLoading(false);
+      return;
+    }
+
     try {
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/dashboard");
