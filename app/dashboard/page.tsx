@@ -27,7 +27,11 @@ export default function DashboardPage() {
   }, [user, authLoading]);
 
   const loadSets = async () => {
-    if (!user) return;
+    if (!user) {
+      console.warn("loadSets: uživatel není přihlášen");
+      setLoading(false);
+      return;
+    }
     try {
       console.log("Načítání sad pro uživatele:", user.uid);
       const userSets = await getUserSets(user.uid);
@@ -38,7 +42,10 @@ export default function DashboardPage() {
       const errorCode = error?.code || "";
       if (errorCode === "permission-denied") {
         console.error("PERMISSION DENIED - Zkontrolujte Security Rules v Firebase Console!");
+        console.error("User ID:", user.uid);
       }
+      // Nastavíme prázdné pole místo crashování
+      setSets([]);
     } finally {
       setLoading(false);
     }

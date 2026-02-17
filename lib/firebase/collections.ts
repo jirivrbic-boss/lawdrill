@@ -137,29 +137,42 @@ export async function getSet(setId: string): Promise<StudySet | null> {
 }
 
 export async function getUserSets(ownerId: string): Promise<StudySet[]> {
-  // Použijeme pouze where bez orderBy, abychom se vyhnuli potřebě composite indexu
-  // Seřadíme výsledky v JavaScriptu místo v dotazu
-  const q = query(
-    setsCollection(),
-    where("ownerId", "==", ownerId)
-  );
-  const querySnapshot = await getDocs(q);
-  const sets = querySnapshot.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      ...data,
-      sourceBlocks: data.sourceBlocks.map((block: any) => ({
-        ...block,
-        importedAt: fromFirestoreDate(block.importedAt),
-      })),
-      createdAt: fromFirestoreDate(data.createdAt),
-      updatedAt: fromFirestoreDate(data.updatedAt),
-    } as StudySet;
-  });
-  
-  // Seřadíme podle updatedAt v JavaScriptu (nejnovější první)
-  return sets.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  try {
+    console.log("getUserSets: ownerId =", ownerId);
+    // Použijeme pouze where bez orderBy, abychom se vyhnuli potřebě composite indexu
+    // Seřadíme výsledky v JavaScriptu místo v dotazu
+    const q = query(
+      setsCollection(),
+      where("ownerId", "==", ownerId)
+    );
+    const querySnapshot = await getDocs(q);
+    console.log("getUserSets: querySnapshot.size =", querySnapshot.size);
+    
+    const sets = querySnapshot.docs.map((doc) => {
+      const data = doc.data();
+      console.log("getUserSets: načítám sadu", doc.id, "ownerId =", data.ownerId);
+      return {
+        id: doc.id,
+        ...data,
+        sourceBlocks: data.sourceBlocks.map((block: any) => ({
+          ...block,
+          importedAt: fromFirestoreDate(block.importedAt),
+        })),
+        createdAt: fromFirestoreDate(data.createdAt),
+        updatedAt: fromFirestoreDate(data.updatedAt),
+      } as StudySet;
+    });
+    
+    console.log("getUserSets: načteno sad:", sets.length);
+    // Seřadíme podle updatedAt v JavaScriptu (nejnovější první)
+    return sets.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  } catch (error: any) {
+    console.error("getUserSets: chyba:", error.code, error.message);
+    if (error.code === "permission-denied") {
+      console.error("PERMISSION DENIED v getUserSets - Zkontrolujte Security Rules!");
+    }
+    throw error;
+  }
 }
 
 export async function createSet(setData: Omit<StudySet, "id" | "createdAt" | "updatedAt">): Promise<string> {
