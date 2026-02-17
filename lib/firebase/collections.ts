@@ -20,11 +20,19 @@ import type { StudySet, Question, Attempt, AIHint, User } from "./types";
 export const toFirestoreDate = (date: Date) => Timestamp.fromDate(date);
 export const fromFirestoreDate = (timestamp: Timestamp) => timestamp.toDate();
 
+// Helper pro získání db instance (pouze na klientovi)
+function getDb() {
+  if (!db) {
+    throw new Error("Firestore není inicializován. Tato funkce může být volána pouze na klientovi.");
+  }
+  return db;
+}
+
 // Users kolekce
-export const usersCollection = collection(db, "users");
+export const usersCollection = () => collection(getDb(), "users");
 
 export async function getUser(uid: string): Promise<User | null> {
-  const docRef = doc(db, "users", uid);
+  const docRef = doc(getDb(), "users", uid);
   const docSnap = await getDoc(docRef);
   if (!docSnap.exists()) return null;
   const data = docSnap.data();
@@ -37,7 +45,7 @@ export async function getUser(uid: string): Promise<User | null> {
 }
 
 export async function createUser(uid: string, email: string, displayName?: string): Promise<void> {
-  await updateDoc(doc(db, "users", uid), {
+  await updateDoc(doc(getDb(), "users", uid), {
     email,
     displayName,
     createdAt: toFirestoreDate(new Date()),
@@ -46,17 +54,17 @@ export async function createUser(uid: string, email: string, displayName?: strin
 }
 
 export async function updateUserStreak(uid: string, streak: number, lastPracticeDate: Date): Promise<void> {
-  await updateDoc(doc(db, "users", uid), {
+  await updateDoc(doc(getDb(), "users", uid), {
     streak,
     lastPracticeDate: toFirestoreDate(lastPracticeDate),
   });
 }
 
 // Sets kolekce
-export const setsCollection = collection(db, "sets");
+export const setsCollection = () => collection(getDb(), "sets");
 
 export async function getSet(setId: string): Promise<StudySet | null> {
-  const docRef = doc(db, "sets", setId);
+  const docRef = doc(getDb(), "sets", setId);
   const docSnap = await getDoc(docRef);
   if (!docSnap.exists()) return null;
   const data = docSnap.data();
@@ -74,7 +82,7 @@ export async function getSet(setId: string): Promise<StudySet | null> {
 
 export async function getUserSets(ownerId: string): Promise<StudySet[]> {
   const q = query(
-    setsCollection,
+    setsCollection(),
     where("ownerId", "==", ownerId),
     orderBy("updatedAt", "desc")
   );
@@ -95,7 +103,7 @@ export async function getUserSets(ownerId: string): Promise<StudySet[]> {
 }
 
 export async function createSet(setData: Omit<StudySet, "id" | "createdAt" | "updatedAt">): Promise<string> {
-  const docRef = await addDoc(setsCollection, {
+  const docRef = await addDoc(setsCollection(), {
     ...setData,
     sourceBlocks: setData.sourceBlocks.map((block) => ({
       ...block,
@@ -108,22 +116,22 @@ export async function createSet(setData: Omit<StudySet, "id" | "createdAt" | "up
 }
 
 export async function updateSet(setId: string, updates: Partial<Omit<StudySet, "id" | "sourceBlocks" | "sourceVersion">>): Promise<void> {
-  await updateDoc(doc(db, "sets", setId), {
+  await updateDoc(doc(getDb(), "sets", setId), {
     ...updates,
     updatedAt: toFirestoreDate(new Date()),
   });
 }
 
 export async function deleteSet(setId: string): Promise<void> {
-  await deleteDoc(doc(db, "sets", setId));
+  await deleteDoc(doc(getDb(), "sets", setId));
 }
 
 // Questions kolekce
-export const questionsCollection = collection(db, "questions");
+export const questionsCollection = () => collection(getDb(), "questions");
 
 export async function getSetQuestions(setId: string): Promise<Question[]> {
   const q = query(
-    questionsCollection,
+    questionsCollection(),
     where("setId", "==", setId),
     orderBy("createdAt", "asc")
   );
@@ -139,7 +147,7 @@ export async function getSetQuestions(setId: string): Promise<Question[]> {
 }
 
 export async function createQuestion(questionData: Omit<Question, "id" | "createdAt">): Promise<string> {
-  const docRef = await addDoc(questionsCollection, {
+  const docRef = await addDoc(questionsCollection(), {
     ...questionData,
     createdAt: toFirestoreDate(new Date()),
   });
@@ -148,11 +156,11 @@ export async function createQuestion(questionData: Omit<Question, "id" | "create
 
 export async function createQuestions(questions: Array<Omit<Question, "id" | "createdAt">>): Promise<void> {
   // Firestore batch write (max 500 operací)
-  const batchWrite = writeBatch(db);
+  const batchWrite = writeBatch(getDb());
   const now = toFirestoreDate(new Date());
   
   questions.forEach((q) => {
-    const docRef = doc(questionsCollection);
+    const docRef = doc(questionsCollection());
     batchWrite.set(docRef, {
       ...q,
       createdAt: now,
@@ -163,14 +171,14 @@ export async function createQuestions(questions: Array<Omit<Question, "id" | "cr
 }
 
 export async function deleteQuestion(questionId: string): Promise<void> {
-  await deleteDoc(doc(db, "questions", questionId));
+  await deleteDoc(doc(getDb(), "questions", questionId));
 }
 
 // Attempts kolekce
-export const attemptsCollection = collection(db, "attempts");
+export const attemptsCollection = () => collection(getDb(), "attempts");
 
 export async function createAttempt(attemptData: Omit<Attempt, "id">): Promise<string> {
-  const docRef = await addDoc(attemptsCollection, {
+  const docRef = await addDoc(attemptsCollection(), {
     ...attemptData,
     startedAt: toFirestoreDate(attemptData.startedAt),
     finishedAt: attemptData.finishedAt ? toFirestoreDate(attemptData.finishedAt) : null,
@@ -188,7 +196,7 @@ export async function getUserAttempts(ownerId: string, setId?: string): Promise<
     constraints.push(where("setId", "==", setId));
   }
   constraints.push(orderBy("startedAt", "desc"));
-  const q = query(attemptsCollection, ...constraints);
+  const q = query(attemptsCollection(), ...constraints);
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map((doc) => {
     const data = doc.data();
@@ -206,11 +214,11 @@ export async function getUserAttempts(ownerId: string, setId?: string): Promise<
 }
 
 // AI Hints kolekce
-export const aiHintsCollection = collection(db, "aiHints");
+export const aiHintsCollection = () => collection(getDb(), "aiHints");
 
 export async function getQuestionHint(questionId: string, ownerId: string): Promise<AIHint | null> {
   const q = query(
-    aiHintsCollection,
+    aiHintsCollection(),
     where("questionId", "==", questionId),
     where("ownerId", "==", ownerId)
   );
@@ -226,7 +234,7 @@ export async function getQuestionHint(questionId: string, ownerId: string): Prom
 }
 
 export async function createHint(hintData: Omit<AIHint, "id" | "createdAt">): Promise<string> {
-  const docRef = await addDoc(aiHintsCollection, {
+  const docRef = await addDoc(aiHintsCollection(), {
     ...hintData,
     createdAt: toFirestoreDate(new Date()),
   });

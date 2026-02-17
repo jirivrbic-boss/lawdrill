@@ -34,6 +34,7 @@ export default function PracticePage() {
     if (user && setId && mode) {
       loadQuestions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, setId, mode]);
 
   const loadQuestions = async () => {

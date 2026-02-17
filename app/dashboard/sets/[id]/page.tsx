@@ -25,6 +25,7 @@ export default function SetDetailPage() {
     if (user && setId) {
       loadSet();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, setId]);
 
   const loadSet = async () => {

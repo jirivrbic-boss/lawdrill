@@ -12,16 +12,19 @@ const firebaseConfig = {
   measurementId: "G-X8GSVB7WTF"
 };
 
+// Inicializace Firebase (funguje i na serveru pro Next.js SSR)
 let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
+if (!getApps().length) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApps()[0];
+}
+
+// Auth a Firestore - pouze na klientovi
+let auth: Auth | undefined;
+let db: Firestore | undefined;
 
 if (typeof window !== "undefined") {
-  if (!getApps().length) {
-    app = initializeApp(firebaseConfig);
-  } else {
-    app = getApps()[0];
-  }
   auth = getAuth(app);
   db = getFirestore(app);
 }

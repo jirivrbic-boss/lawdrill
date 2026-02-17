@@ -23,6 +23,7 @@ export default function DashboardPage() {
     if (user) {
       loadSets();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
   const loadSets = async () => {
