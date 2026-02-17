@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper funkce pro kontrolu vlastnictví
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Users kolekce - uživatel může číst a upravovat pouze svůj vlastní záznam
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Study Sets - uživatel může číst a vytvářet pouze své sady
+    match /sets/{setId} {
+      allow read, create: if isOwner(resource.data.ownerId);
+      allow update: if isOwner(resource.data.ownerId) 
+                    && request.resource.data.sourceBlocks == resource.data.sourceBlocks; // sourceBlocks jsou immutable
+      allow delete: if isOwner(resource.data.ownerId);
+    }
+    
+    // Questions - uživatel může číst a vytvářet pouze otázky ze svých sad
+    match /questions/{questionId} {
+      allow read, create: if isOwner(resource.data.ownerId);
+      allow update: if isOwner(resource.data.ownerId);
+      allow delete: if isOwner(resource.data.ownerId);
+    }
+    
+    // Attempts - uživatel může číst a vytvářet pouze své pokusy
+    match /attempts/{attemptId} {
+      allow read, create, update: if isOwner(resource.data.ownerId);
+      allow delete: if isOwner(resource.data.ownerId);
+    }
+    
+    // AI Hints - uživatel může číst a vytvářet pouze své nápovědy
+    match /aiHints/{hintId} {
+      allow read, create: if isOwner(resource.data.ownerId);
+      allow delete: if isOwner(resource.data.ownerId);
+    }
+  }
+}
