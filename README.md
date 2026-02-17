@@ -10,7 +10,17 @@ Webová aplikace pro procvičování práva pomocí interaktivních otázek vytv
 - **Import ze ZakonyProLidi.cz**: Automatický import textu z právních předpisů
 - **AI nápověda**: Volitelná nápověda přes ikonu 💡 (generuje se až na požádání)
 
-## 🚀 Setup
+## 👥 Pro uživatele
+
+**Aplikace je připravena k použití!**
+
+- 🌐 **URL**: https://lawdrill-git-main-jirivrbic-boss-projects.vercel.app
+- 📖 **Návod pro uživatele**: Viz [USER_GUIDE.md](./USER_GUIDE.md)
+- ✅ **Stačí se zaregistrovat a začít používat!**
+
+---
+
+## 🛠️ Pro vývojáře - Setup
 
 ### Požadavky
 
@@ -33,8 +43,10 @@ npm install
 
 ### 3. Firestore Security Rules
 
-Nahrajte obsah souboru `firestore.rules` do Firebase Console:
-- Firestore Database → Rules → vložte obsah `firestore.rules`
+**DŮLEŽITÉ:** Nahrajte obsah souboru `firestore.rules` do Firebase Console:
+- Firestore Database → Rules → vložte obsah `firestore.rules` → klikněte **Publish**
+
+**Rules Playground** je jen nástroj pro testování Rules - není součást aplikace!
 
 ### 4. Spuštění aplikace
 
