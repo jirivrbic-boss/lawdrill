@@ -147,20 +147,16 @@ function generateQuizQuestions(
 ): QuestionGenerationResult["questions"] {
   const questions: QuestionGenerationResult["questions"] = [];
   
-  // Najdeme věty s klíčovými právními pojmy
-  const legalKeywords = [
-    "musí", "nesmí", "může", "je povinen", "má právo",
-    "lhůta", "doba", "den", "měsíc", "rok",
-    "smlouva", "zákon", "nařízení", "vyhláška",
-    "subjekt", "osoba", "právnická osoba", "fyzická osoba",
-  ];
+  if (sentences.length === 0) return questions;
 
-  for (const sentence of sentences.slice(0, maxCount)) {
-    const hasLegalKeyword = legalKeywords.some((keyword) =>
-      sentence.toLowerCase().includes(keyword.toLowerCase())
-    );
+  // Použijeme cyklické opakování vět, pokud není dostatek materiálu
+  let sentenceIndex = 0;
+  while (questions.length < maxCount && sentences.length > 0) {
+    const sentence = sentences[sentenceIndex % sentences.length];
+    sentenceIndex++;
 
-    if (!hasLegalKeyword || sentence.length < 30) continue;
+    // Uvolníme podmínky - stačí délka >= 20 místo 30 a nemusí mít klíčové slovo
+    if (sentence.length < 20) continue;
 
     // Vytvoříme otázku z věty
     const prompt = `Co říká následující ustanovení: "${sentence.substring(0, 100)}..."?`;
@@ -171,7 +167,22 @@ function generateQuizQuestions(
     // Distraktory - podobné, ale špatné odpovědi
     const distractors = generateDistractors(sentence, allBlocks);
 
-    if (distractors.length < 3) continue;
+    // Pokud nemáme 3 distraktory, vytvoříme je z jiných vět
+    while (distractors.length < 3) {
+      const randomSentence = sentences[Math.floor(Math.random() * sentences.length)];
+      if (randomSentence !== sentence) {
+        distractors.push(extractKeyPart(randomSentence));
+      }
+      // Zabráníme nekonečné smyčce
+      if (distractors.length >= 3 || distractors.length >= sentences.length) break;
+    }
+
+    if (distractors.length < 3) {
+      // Pokud stále nemáme dost distraktorů, použijeme generické
+      distractors.push("Toto ustanovení se nevztahuje na tento případ");
+      distractors.push("Toto ustanovení bylo zrušeno");
+      distractors.push("Toto ustanovení má jiný význam");
+    }
 
     const citations: Citation[] = [
       {
@@ -186,13 +197,13 @@ function generateQuizQuestions(
     questions.push({
       type: "quiz",
       prompt,
-      options: [answer, ...distractors].sort(() => Math.random() - 0.5), // náhodné pořadí
+      options: [answer, ...distractors.slice(0, 3)].sort(() => Math.random() - 0.5), // náhodné pořadí
       answer,
       citations,
     });
   }
 
-  return questions;
+  return questions.slice(0, maxCount);
 }
 
 /**
@@ -206,42 +217,55 @@ function generateFillQuestions(
 ): QuestionGenerationResult["questions"] {
   const questions: QuestionGenerationResult["questions"] = [];
 
-  for (const sentence of sentences.slice(0, maxCount)) {
+  if (sentences.length === 0) return questions;
+
+  // Použijeme cyklické opakování vět, pokud není dostatek materiálu
+  let sentenceIndex = 0;
+  while (questions.length < maxCount && sentences.length > 0) {
+    const sentence = sentences[sentenceIndex % sentences.length];
+    sentenceIndex++;
+
     // Najdeme klíčové slovo k vynechání
     const words = sentence.split(/\s+/);
-    if (words.length < 5) continue;
+    if (words.length < 3) continue; // Uvolníme podmínku z 5 na 3
 
-    // Vybereme střední slovo (ne první, ne poslední)
-    const wordIndex = Math.floor(words.length / 2);
-    const missingWord = words[wordIndex];
-    
-    // Přeskočíme krátká slova nebo členy
-    if (missingWord.length < 4 || ["a", "an", "the", "je", "se", "na", "v", "z"].includes(missingWord.toLowerCase())) {
-      continue;
+    // Zkusíme najít vhodné slovo - projdeme různá místa ve větě
+    let foundWord = false;
+    for (let offset = 0; offset < Math.min(3, words.length - 1); offset++) {
+      const wordIndex = Math.floor((words.length / 2) + offset) % words.length;
+      const missingWord = words[wordIndex];
+      
+      // Uvolníme podmínky - stačí délka >= 3 místo 4
+      if (missingWord.length >= 3 && !["a", "an", "the", "je", "se", "na", "v", "z", "a", "i", "o", "u"].includes(missingWord.toLowerCase())) {
+        const prompt = sentence.replace(new RegExp(`\\b${missingWord}\\b`, "g"), "______");
+        const answer = missingWord.replace(/[.,;:!?]/g, ""); // odstraníme interpunkci
+
+        const citations: Citation[] = [
+          {
+            sourceType: sourceBlock.sourceType,
+            sourceUrl: sourceBlock.sourceUrl,
+            exactQuote: sentence,
+            locationHint: sourceBlock.locationHint,
+            confidence: "high",
+          },
+        ];
+
+        questions.push({
+          type: "fill",
+          prompt,
+          answer,
+          citations,
+        });
+        foundWord = true;
+        break;
+      }
     }
 
-    const prompt = sentence.replace(missingWord, "______");
-    const answer = missingWord.replace(/[.,;:!?]/g, ""); // odstraníme interpunkci
-
-    const citations: Citation[] = [
-      {
-        sourceType: sourceBlock.sourceType,
-        sourceUrl: sourceBlock.sourceUrl,
-        exactQuote: sentence,
-        locationHint: sourceBlock.locationHint,
-        confidence: "high",
-      },
-    ];
-
-    questions.push({
-      type: "fill",
-      prompt,
-      answer,
-      citations,
-    });
+    // Pokud jsme nenašli vhodné slovo, přeskočíme větu
+    if (!foundWord && sentenceIndex > sentences.length * 2) break;
   }
 
-  return questions;
+  return questions.slice(0, maxCount);
 }
 
 /**
@@ -255,8 +279,15 @@ function generateTrueFalseQuestions(
 ): QuestionGenerationResult["questions"] {
   const questions: QuestionGenerationResult["questions"] = [];
 
-  for (const sentence of sentences.slice(0, maxCount)) {
-    if (sentence.length < 20) continue;
+  if (sentences.length === 0) return questions;
+
+  // Použijeme cyklické opakování vět, pokud není dostatek materiálu
+  let sentenceIndex = 0;
+  while (questions.length < maxCount && sentences.length > 0) {
+    const sentence = sentences[sentenceIndex % sentences.length];
+    sentenceIndex++;
+
+    if (sentence.length < 15) continue; // Uvolníme podmínku z 20 na 15
 
     // Vytvoříme tvrzení z věty
     const statement = sentence.trim();
@@ -283,7 +314,7 @@ function generateTrueFalseQuestions(
 
     // Také vytvoříme variantu "Nepravda" změnou klíčového slova
     const falseStatement = createFalseStatement(sentence);
-    if (falseStatement) {
+    if (falseStatement && questions.length < maxCount) {
       questions.push({
         type: "tf",
         prompt: falseStatement,
@@ -299,9 +330,30 @@ function generateTrueFalseQuestions(
         ],
       });
     }
+
+    // Pokud jsme prošli všechny věty a stále nemáme dost, vytvoříme více nepravdivých variant
+    if (sentenceIndex > sentences.length && questions.length < maxCount) {
+      const falseStatement2 = createFalseStatement(sentence);
+      if (falseStatement2 && questions.length < maxCount) {
+        questions.push({
+          type: "tf",
+          prompt: falseStatement2,
+          answer: "Nepravda",
+          citations: [
+            {
+              sourceType: sourceBlock.sourceType,
+              sourceUrl: sourceBlock.sourceUrl,
+              exactQuote: sentence,
+              locationHint: sourceBlock.locationHint,
+              confidence: "high",
+            },
+          ],
+        });
+      }
+    }
   }
 
-  return questions;
+  return questions.slice(0, maxCount);
 }
 
 /**
@@ -315,21 +367,36 @@ function generateFlashcardQuestions(
 ): QuestionGenerationResult["questions"] {
   const questions: QuestionGenerationResult["questions"] = [];
 
-  for (const paragraph of paragraphs.slice(0, maxCount)) {
-    if (paragraph.length < 30) continue;
+  // Pokud nemáme odstavce, použijeme věty jako odstavce
+  let sources = paragraphs.length > 0 ? paragraphs : splitIntoSentences(sourceBlock.rawText);
+
+  if (sources.length === 0) return questions;
+
+  // Použijeme cyklické opakování, pokud není dostatek materiálu
+  let sourceIndex = 0;
+  while (questions.length < maxCount && sources.length > 0) {
+    const source = sources[sourceIndex % sources.length];
+    sourceIndex++;
+
+    if (source.length < 20) continue; // Uvolníme podmínku z 30 na 20
 
     // Najdeme první větu jako otázku/pojem
-    const firstSentence = paragraph.split(/[.!?]/)[0].trim();
-    if (firstSentence.length < 10) continue;
+    const sentences = source.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    if (sentences.length === 0) continue;
 
-    // Zbytek odstavce je odpověď
-    const answer = paragraph.substring(firstSentence.length).trim();
+    const firstSentence = sentences[0].trim();
+    if (firstSentence.length < 8) continue; // Uvolníme podmínku z 10 na 8
+
+    // Zbytek textu je odpověď
+    const answer = source.substring(firstSentence.length).trim();
+    // Pokud není dostatek textu pro odpověď, použijeme celý zdroj
+    const finalAnswer = answer.length > 10 ? answer : source;
 
     const citations: Citation[] = [
       {
         sourceType: sourceBlock.sourceType,
         sourceUrl: sourceBlock.sourceUrl,
-        exactQuote: paragraph,
+        exactQuote: source,
         locationHint: sourceBlock.locationHint,
         confidence: "high",
       },
@@ -338,12 +405,12 @@ function generateFlashcardQuestions(
     questions.push({
       type: "flashcard",
       prompt: firstSentence,
-      answer,
+      answer: finalAnswer,
       citations,
     });
   }
 
-  return questions;
+  return questions.slice(0, maxCount);
 }
 
 /**
@@ -404,15 +471,27 @@ function createFalseStatement(sentence: string): string | null {
   const replacements: [RegExp, string][] = [
     [/\d+\s*(den|dnů|dní)/gi, "999 dní"],
     [/\d+\s*(měsíc|měsíců|měsíců)/gi, "999 měsíců"],
+    [/\d+\s*(rok|let|roky)/gi, "999 let"],
     [/musí/gi, "nemusí"],
     [/nesmí/gi, "smí"],
     [/je povinen/gi, "není povinen"],
+    [/má právo/gi, "nemá právo"],
+    [/může/gi, "nesmí"],
+    [/je/gi, "není"],
+    [/bylo/gi, "nebylo"],
+    [/byla/gi, "nebyla"],
+    [/byl/gi, "nebyl"],
   ];
 
   for (const [pattern, replacement] of replacements) {
     if (pattern.test(sentence)) {
       return sentence.replace(pattern, replacement);
     }
+  }
+
+  // Pokud žádná náhrada nefunguje, přidáme "ne" na začátek
+  if (sentence.length > 10) {
+    return "Neplatí, že " + sentence.toLowerCase();
   }
 
   return null;
