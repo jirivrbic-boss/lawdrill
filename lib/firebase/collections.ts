@@ -104,19 +104,36 @@ export const setsCollection = () => collection(getDb(), "sets");
 
 export async function getSet(setId: string): Promise<StudySet | null> {
   const docRef = doc(getDb(), "sets", setId);
-  const docSnap = await getDoc(docRef);
-  if (!docSnap.exists()) return null;
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    ...data,
-    sourceBlocks: data.sourceBlocks.map((block: any) => ({
-      ...block,
-      importedAt: fromFirestoreDate(block.importedAt),
-    })),
-    createdAt: fromFirestoreDate(data.createdAt),
-    updatedAt: fromFirestoreDate(data.updatedAt),
-  } as StudySet;
+  console.log("Pokus o načtení sady:", setId);
+  
+  try {
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) {
+      console.warn("Sada neexistuje:", setId);
+      return null;
+    }
+    
+    const data = docSnap.data();
+    console.log("Sada načtena, ownerId:", data.ownerId);
+    
+    return {
+      id: docSnap.id,
+      ...data,
+      sourceBlocks: data.sourceBlocks.map((block: any) => ({
+        ...block,
+        importedAt: fromFirestoreDate(block.importedAt),
+      })),
+      createdAt: fromFirestoreDate(data.createdAt),
+      updatedAt: fromFirestoreDate(data.updatedAt),
+    } as StudySet;
+  } catch (error: any) {
+    console.error("Chyba při getSet:", error.code, error.message);
+    if (error.code === "permission-denied") {
+      console.error("PERMISSION DENIED - Zkontrolujte Security Rules v Firebase Console!");
+      console.error("Sada ID:", setId);
+    }
+    throw error;
+  }
 }
 
 export async function getUserSets(ownerId: string): Promise<StudySet[]> {
@@ -146,8 +163,10 @@ export async function getUserSets(ownerId: string): Promise<StudySet[]> {
 }
 
 export async function createSet(setData: Omit<StudySet, "id" | "createdAt" | "updatedAt">): Promise<string> {
+  // Ujistíme se, že ownerId je vždy přítomen (nesmí být odstraněn removeUndefined)
   const firestoreData = removeUndefined({
     ...setData,
+    ownerId: setData.ownerId, // Explicitně zachováme ownerId
     sourceBlocks: setData.sourceBlocks.map((block) => ({
       ...block,
       importedAt: toFirestoreDate(block.importedAt),
@@ -156,7 +175,11 @@ export async function createSet(setData: Omit<StudySet, "id" | "createdAt" | "up
     updatedAt: toFirestoreDate(new Date()),
   });
   
+  // Debug log pro ověření
+  console.log("Vytváření sady s ownerId:", firestoreData.ownerId);
+  
   const docRef = await addDoc(setsCollection(), firestoreData);
+  console.log("Sada vytvořena s ID:", docRef.id);
   return docRef.id;
 }
 
