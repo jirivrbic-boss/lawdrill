@@ -19,7 +19,23 @@ import type { StudySet, Question, Attempt, AIHint, User } from "./types";
 
 // Helper pro konverzi Date <-> Timestamp
 export const toFirestoreDate = (date: Date) => Timestamp.fromDate(date);
-export const fromFirestoreDate = (timestamp: Timestamp) => timestamp.toDate();
+export const fromFirestoreDate = (value: Timestamp | Date | any): Date => {
+  // Pokud už je Date, vrať to
+  if (value instanceof Date) {
+    return value;
+  }
+  // Pokud je Timestamp, převeď na Date
+  if (value && typeof value.toDate === 'function') {
+    return value.toDate();
+  }
+  // Pokud je objekt s seconds a nanoseconds (Firestore Timestamp formát)
+  if (value && typeof value.seconds === 'number') {
+    return new Date(value.seconds * 1000 + (value.nanoseconds || 0) / 1000000);
+  }
+  // Fallback - zkus vytvořit Date z hodnoty
+  console.warn('fromFirestoreDate: Unexpected value type', value);
+  return value ? new Date(value) : new Date();
+};
 
 // Helper pro odstranění undefined hodnot z objektu (Firestore nepodporuje undefined)
 function removeUndefined<T extends Record<string, any>>(obj: T): T {
