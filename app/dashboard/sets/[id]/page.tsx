@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/context";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getSet, getSetQuestions } from "@/lib/firebase/collections";
 import type { StudySet, Question } from "@/lib/firebase/types";
@@ -11,10 +11,12 @@ export default function SetDetailPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const setId = params.id as string;
   const [set, setSet] = useState<StudySet | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showModeSelection, setShowModeSelection] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -45,6 +47,19 @@ export default function SetDetailPage() {
       console.log("Sada načtena:", setData.title, "Otázek:", questionsData.length);
       setSet(setData);
       setQuestions(questionsData);
+      
+      // Pokud je query parametr selectMode=true, zobrazíme výběr módu a scrollneme na něj
+      if (searchParams.get("selectMode") === "true") {
+        setShowModeSelection(true);
+        setTimeout(() => {
+          const modeSection = document.getElementById("mode-selection");
+          if (modeSection) {
+            modeSection.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+          // Odstraníme query parametr z URL
+          router.replace(`/dashboard/sets/${setId}`, { scroll: false });
+        }, 500);
+      }
     } catch (error: any) {
       console.error("Chyba při načítání sady:", error);
       const errorCode = error?.code || "";
@@ -150,7 +165,22 @@ export default function SetDetailPage() {
           </div>
         ) : (
           <>
-            <h2 className="text-2xl font-bold mb-6">Módy procvičování</h2>
+            <div id="mode-selection" className="scroll-mt-24">
+              {showModeSelection && (
+                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6 mb-6 animate-pulse">
+                  <h3 className="text-xl font-bold text-green-800 mb-2">
+                    ✅ Sada byla úspěšně vytvořena!
+                  </h3>
+                  <p className="text-green-700">
+                    Vyberte si mód procvičování níže a začněte procvičovat.
+                  </p>
+                </div>
+              )}
+              <h2 className="text-3xl font-bold mb-2">Vyberte mód procvičování</h2>
+              <p className="text-gray-600 mb-6">
+                Zvolte si způsob, jakým chcete procvičovat tuto sadu otázek.
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               {modes.map((mode) => {
                 const availableQuestions = questions.filter((q) => q.type === mode.type);
@@ -158,18 +188,31 @@ export default function SetDetailPage() {
                   <Link
                     key={mode.type}
                     href={`/dashboard/sets/${setId}/practice/${mode.type}`}
-                    className={`bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow ${
-                      availableQuestions.length === 0 ? "opacity-50 cursor-not-allowed" : ""
+                    className={`bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-all transform hover:scale-105 ${
+                      availableQuestions.length === 0 
+                        ? "opacity-50 cursor-not-allowed" 
+                        : "hover:border-primary-500 border-2 border-transparent"
                     }`}
                   >
-                    <div className="text-4xl mb-3">{mode.icon}</div>
-                    <h3 className="text-xl font-bold mb-2">{mode.name}</h3>
-                    <p className="text-gray-600 text-sm mb-4">{mode.description}</p>
-                    <div className="text-sm text-gray-500">
-                      {availableQuestions.length > 0
-                        ? `${availableQuestions.length} otázek`
-                        : "Žádné otázky tohoto typu"}
+                    <div className="text-5xl mb-4 text-center">{mode.icon}</div>
+                    <h3 className="text-2xl font-bold mb-2 text-center">{mode.name}</h3>
+                    <p className="text-gray-600 text-sm mb-4 text-center">{mode.description}</p>
+                    <div className="text-center">
+                      <div className={`inline-block px-4 py-2 rounded-lg ${
+                        availableQuestions.length > 0
+                          ? "bg-primary-100 text-primary-700 font-semibold"
+                          : "bg-gray-100 text-gray-500"
+                      }`}>
+                        {availableQuestions.length > 0
+                          ? `${availableQuestions.length} otázek`
+                          : "Žádné otázky tohoto typu"}
+                      </div>
                     </div>
+                    {availableQuestions.length > 0 && (
+                      <div className="mt-4 text-center">
+                        <span className="text-primary-600 font-semibold">Začít procvičovat →</span>
+                      </div>
+                    )}
                   </Link>
                 );
               })}

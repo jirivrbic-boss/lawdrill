@@ -133,7 +133,8 @@ export default function CreateSetPage() {
         });
       }
 
-      router.push(`/dashboard/sets/${setId}`);
+      // Přesměrování na detail sady s parametrem pro automatický scroll na módy
+      router.push(`/dashboard/sets/${setId}?selectMode=true`);
     } catch (err: any) {
       console.error("Chyba při vytváření sady:", err);
       const errorMessage = err.message || "Neznámá chyba";
